@@ -202,7 +202,8 @@ def main():
             vc.capture_cv_video(0, bgr_to_rgb=True)
             # or your window screen
             # vc.capture_screen()
-        )
+        ),
+        device="/dev/video20",
     )
 
 

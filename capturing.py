@@ -68,15 +68,26 @@ class VirtualCamera:
 
             yield frame
 
-    def virtual_cam_interaction(self, img_generator, print_fps=True):
+    def virtual_cam_interaction(self, img_generator, print_fps=True, device=None):
         """
         Provides a virtual camera.
         img_generator must represent a function that acts as a generator and returns image data.
+        device: specify which video device to use (e.g., '/dev/video20')
         """
         print('Quit camera stream with "q"')
-        with pyvirtualcam.Camera(
-            width=self.width, height=self.height, fps=self.fps, print_fps=print_fps
-        ) as cam:
+
+        # Create camera with or without device specification
+        camera_kwargs = {
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+            "print_fps": print_fps,
+        }
+
+        if device:
+            camera_kwargs["device"] = device
+
+        with pyvirtualcam.Camera(**camera_kwargs) as cam:
             for img in img_generator:
                 # provide the image
                 cam.send(img)

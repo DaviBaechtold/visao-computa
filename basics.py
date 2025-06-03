@@ -7,7 +7,7 @@ Created on Mon May  3 19:18:29 2021
 from numba import njit  # conda install numba
 import numpy as np
 import math
-import cv2 as cv
+import cv2
 
 
 @njit
@@ -33,7 +33,6 @@ def histogram_figure_numba(np_img):
     return r_bars, g_bars, b_bars
 
 
-@njit
 def calculate_channels_stats(r_bars, g_bars, b_bars):
     # Mean = sum of intensities / n of pixels
     r_mean = 0
@@ -186,7 +185,7 @@ def blur_filter(np_img):
     # Parameters
     # (25, 25) is the kernel size
     # 0 is the standard deviation in the X direction
-    return cv.GaussianBlur(np_img, (25, 25), 0)
+    return cv2.GaussianBlur(np_img, (25, 25), 0)
 
 
 def sharpen_filter(np_img):
@@ -194,11 +193,11 @@ def sharpen_filter(np_img):
     # [-1, -1, -1]
     # [-1,  9, -1]
     # [-1, -1, -1]
-    return cv.filter2D(np_img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
+    return cv2.filter2D(np_img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
 
 
 def edge_detection(np_img):
-    edges = cv.Canny(np_img, 50, 150)
+    edges = cv2.Canny(np_img, 50, 150)
     # Convert to uint8 RGB format
-    edges_rgb = cv.cvtColor(edges, cv.COLOR_GRAY2RGB)
+    edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
     return edges_rgb.astype(np.uint8)
