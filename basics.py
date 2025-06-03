@@ -7,6 +7,7 @@ Created on Mon May  3 19:18:29 2021
 from numba import njit  # conda install numba
 import numpy as np
 import math
+import cv2 as cv
 
 
 @njit
@@ -14,9 +15,6 @@ def histogram_figure_numba(np_img):
     """
     Jit compiled function to increase performance.
     Use some loops insteads of purely numpy functions.
-    If you face some compile errors using @njit, see: https://numba.pydata.org/numba-doc/dev/reference/numpysupported.html
-    In case you dont need performance boosts, remove the njit flag above the function
-    Do not use cv2 functions together with @njit
     """
     r_bars = [0] * 256
     g_bars = [0] * 256
@@ -35,6 +33,7 @@ def histogram_figure_numba(np_img):
     return r_bars, g_bars, b_bars
 
 
+@njit
 def calculate_channels_stats(r_bars, g_bars, b_bars):
     # Mean = sum of intensities / n of pixels
     r_mean = 0
@@ -68,7 +67,7 @@ def calculate_channels_stats(r_bars, g_bars, b_bars):
     std_g = (std_g / g_sum) ** 0.5
     std_b = (std_b / b_sum) ** 0.5
 
-    # Max and min
+    # Max and min of each channel
     for i in range(255, -1, -1):
         if r_bars[i] > 0:
             r_max = i
@@ -102,7 +101,7 @@ def calculate_channels_stats(r_bars, g_bars, b_bars):
         p_i_r = r_bars[i] / r_sum
         p_i_g = g_bars[i] / g_sum
         p_i_b = b_bars[i] / b_sum
-        if p_i_r > 0: # log2(0) is undefined
+        if p_i_r > 0:  # log2(0) is undefined
             r_entropy += p_i_r * math.log2(p_i_r)
         if p_i_g > 0:
             g_entropy += p_i_g * math.log2(p_i_g)
@@ -134,8 +133,72 @@ def calculate_channels_stats(r_bars, g_bars, b_bars):
     )
 
 
-####
+def linear_transformation(np_img, a, b):
+    lookup_table = np.arange(256)  # LUT for optimization
+    lookup_table = lookup_table * a + b  # Linear transformation
+    lookup_table = np.clip(lookup_table, 0, 255).astype(np.uint8)  # Clip to 0-255
+    return lookup_table[np_img]  # Apply LUT to image
 
-### All other basic functions
 
-####
+def equalize_histogram(r_bars, g_bars, b_bars):
+    """
+    Creates lookup tables for histogram equalization
+    """
+    # Calculate the cumulative distribution function
+    cdf_r = np.cumsum(r_bars)
+    cdf_g = np.cumsum(g_bars)
+    cdf_b = np.cumsum(b_bars)
+
+    # Create equalized lookup tables
+    # Avoid division by zero by checking if cdf[-1] > 0
+    lookup_table_r = np.zeros(256, dtype=np.uint8)
+    lookup_table_g = np.zeros(256, dtype=np.uint8)
+    lookup_table_b = np.zeros(256, dtype=np.uint8)
+
+    if cdf_r[-1] > 0:
+        lookup_table_r = (cdf_r * 255 / cdf_r[-1]).astype(np.uint8)
+    if cdf_g[-1] > 0:
+        lookup_table_g = (cdf_g * 255 / cdf_g[-1]).astype(np.uint8)
+    if cdf_b[-1] > 0:
+        lookup_table_b = (cdf_b * 255 / cdf_b[-1]).astype(np.uint8)
+
+    return lookup_table_r, lookup_table_g, lookup_table_b
+
+
+def apply_histogram_equalization(
+    np_img, lookup_table_r, lookup_table_g, lookup_table_b
+):
+    """
+    Apply histogram equalization lookup tables to an image
+    """
+    # Create a copy of the image to avoid modifying the original
+    equalized_img = np_img.copy()
+
+    # Apply lookup tables to each channel separately
+    equalized_img[:, :, 0] = lookup_table_r[np_img[:, :, 0]]  # Red channel
+    equalized_img[:, :, 1] = lookup_table_g[np_img[:, :, 1]]  # Green channel
+    equalized_img[:, :, 2] = lookup_table_b[np_img[:, :, 2]]  # Blue channel
+
+    return equalized_img
+
+
+def blur_filter(np_img):
+    # Parameters
+    # (25, 25) is the kernel size
+    # 0 is the standard deviation in the X direction
+    return cv.GaussianBlur(np_img, (25, 25), 0)
+
+
+def sharpen_filter(np_img):
+    # Using kernel
+    # [-1, -1, -1]
+    # [-1,  9, -1]
+    # [-1, -1, -1]
+    return cv.filter2D(np_img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
+
+
+def edge_detection(np_img):
+    edges = cv.Canny(np_img, 50, 150)
+    # Convert to uint8 RGB format
+    edges_rgb = cv.cvtColor(edges, cv.COLOR_GRAY2RGB)
+    return edges_rgb.astype(np.uint8)

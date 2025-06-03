@@ -66,11 +66,6 @@ class VirtualCamera:
             if bgr_to_rgb:
                 frame = frame[..., ::-1]
 
-            if keyboard.is_pressed("q"):
-                # quit camera stream
-                cv_vid.release()
-                return
-
             yield frame
 
     def virtual_cam_interaction(self, img_generator, print_fps=True):

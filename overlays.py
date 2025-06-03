@@ -87,7 +87,7 @@ def plot_strings_to_image(
     """
     y_start = top_space
     min_size = right_space
-    line_height = 20
+    line_height = 30
     (h, w, c) = np_img.shape
     if w < min_size:
         raise Exception("Image too small in width to print additional text.")
