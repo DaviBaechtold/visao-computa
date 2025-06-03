@@ -155,7 +155,6 @@ class HandDetector:
 
         # MediaPipe landmark indices
         WRIST = 0
-        THUMB_TIP = 4
         INDEX_TIP = 8
         MIDDLE_TIP = 12
         RING_TIP = 16
@@ -168,7 +167,6 @@ class HandDetector:
 
         # Get landmark coordinates
         wrist = landmarks[WRIST]
-        thumb_tip = landmarks[THUMB_TIP]
         index_tip = landmarks[INDEX_TIP]
         middle_tip = landmarks[MIDDLE_TIP]
         ring_tip = landmarks[RING_TIP]
@@ -179,11 +177,11 @@ class HandDetector:
         ring_mcp = landmarks[RING_MCP]
         pinky_mcp = landmarks[PINKY_MCP]
 
-        # Helper function to calculate distance
+        # function to calculate distance
         def distance(p1, p2):
             return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
-        # Helper function to calculate angle between three points
+        # function to calculate angle between three points
         def angle_between_points(p1, p2, p3):
             import math
 
