@@ -54,6 +54,7 @@ class HandDetector:
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
         vulcan_salute_detected = False
+        letter_m_detected = False
 
         # Draw hand landmarks if detected
         if results.multi_hand_landmarks:
@@ -106,7 +107,36 @@ class HandDetector:
                         2,
                     )
 
-        return img_rgb, vulcan_salute_detected
+                # Check for letter M gesture
+                if self.is_letter_m_down(landmarks):
+                    letter_m_detected = True
+
+                    # Get handedness
+                    handedness = results.multi_handedness[idx].classification[0].label
+
+                    # Draw a special indicator for letter M
+                    x_coords = [lm[0] for lm in landmarks]
+                    y_coords = [lm[1] for lm in landmarks]
+                    x_min, x_max = min(x_coords) - 20, max(x_coords) + 20
+                    y_min, y_max = min(y_coords) - 20, max(y_coords) + 20
+
+                    # Draw blue rectangle for letter M
+                    cv2.rectangle(
+                        img_rgb, (x_min, y_min), (x_max, y_max), (255, 0, 0), 3
+                    )
+
+                    # Add text label
+                    cv2.putText(
+                        img_rgb,
+                        f"LETTER M ({handedness})",
+                        (x_min, y_min - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8,
+                        (255, 0, 0),
+                        2,
+                    )
+
+        return img_rgb, vulcan_salute_detected, letter_m_detected
 
     def get_hand_landmarks(self, np_img):
         # Convert RGB to BGR for MediaPipe processing
@@ -282,34 +312,134 @@ class HandDetector:
         )
 
         # Debug output
-        if self.debug:
-            print(f"Vulcan Salute Debug:")
-            print(f"  Fingers extended: {fingers_extended}")
-            print(
-                f"  Index-Middle distance: {index_middle_distance:.1f} (max: {max_finger_group_distance})"
-            )
-            print(
-                f"  Ring-Pinky distance: {ring_pinky_distance:.1f} (max: {max_finger_group_distance})"
-            )
-            print(
-                f"  Middle-Ring separation: {middle_ring_distance:.1f} (min: {min_separation_distance})"
-            )
-            print(
-                f"  Separation angle: {separation_angle:.1f}° (range: {min_separation_angle}-{max_separation_angle})"
-            )
-            print(f"  Max group distance: {max_group_distance:.1f}")
-            print(
-                f"  Separation ratio: {middle_ring_distance/max_group_distance:.2f} (min: {min_separation_ratio})"
-            )
-            print(f"  Close finger groups: {close_finger_groups}")
-            print(f"  Good separation: {good_separation}")
-            print(f"  Separation ratio check: {separation_ratio_check}")
-            print(
-                f"  Result: {close_finger_groups and good_separation and separation_ratio_check}"
-            )
-            print("---")
+        # if self.debug:
+        #     print("================ VULCAN SALUTE DEBUG ================")
+        #     print(f"  Fingers extended: {fingers_extended}")
+        #     print(
+        #         f"  Index-Middle distance: {index_middle_distance:.1f} (max: {max_finger_group_distance})"
+        #     )
+        #     print(
+        #         f"  Ring-Pinky distance: {ring_pinky_distance:.1f} (max: {max_finger_group_distance})"
+        #     )
+        #     print(
+        #         f"  Middle-Ring separation: {middle_ring_distance:.1f} (min: {min_separation_distance})"
+        #     )
+        #     print(
+        #         f"  Separation angle: {separation_angle:.1f}° (range: {min_separation_angle}-{max_separation_angle})"
+        #     )
+        #     print(f"  Max group distance: {max_group_distance:.1f}")
+        #     print(
+        #         f"  Separation ratio: {middle_ring_distance/max_group_distance:.2f} (min: {min_separation_ratio})"
+        #     )
+        #     print(f"  Close finger groups: {close_finger_groups}")
+        #     print(f"  Good separation: {good_separation}")
+        #     print(f"  Separation ratio check: {separation_ratio_check}")
+        #     print(f"  Result: {close_finger_groups and good_separation and separation_ratio_check}")
+        #     print("=====================================================")
+        #     print("---")
 
         return close_finger_groups and good_separation and separation_ratio_check
+
+    def is_letter_m_down(self, landmarks):
+        """
+        Detect if the hand is making the letter M gesture with fingers pointing down
+
+        The letter M gesture is characterized by:
+        - Index, middle and ring fingers extended and pointing down
+        - Thumb and pinky NOT extended and pointing down
+        - Middle finger average point should be lower than ring finger, which should be lower than index finger
+
+        Args:
+            landmarks: List of landmark coordinates [(x, y, z), ...]
+
+        Returns:
+            Boolean indicating if letter M gesture is detected
+        """
+        if len(landmarks) < 21:  # MediaPipe hands has 21 landmarks
+            return False
+
+        # MediaPipe landmark indices
+        WRIST = 0
+        THUMB_TIP = 4
+        INDEX_TIP = 8
+        MIDDLE_TIP = 12
+        RING_TIP = 16
+        PINKY_TIP = 20
+
+        THUMB_MCP = 2
+        INDEX_MCP = 5
+        MIDDLE_MCP = 9
+        RING_MCP = 13
+        PINKY_MCP = 17
+
+        # Get landmark coordinates
+        wrist = landmarks[WRIST]
+        thumb_tip = landmarks[THUMB_TIP]
+        index_tip = landmarks[INDEX_TIP]
+        middle_tip = landmarks[MIDDLE_TIP]
+        ring_tip = landmarks[RING_TIP]
+        pinky_tip = landmarks[PINKY_TIP]
+
+        thumb_mcp = landmarks[THUMB_MCP]
+        index_mcp = landmarks[INDEX_MCP]
+        middle_mcp = landmarks[MIDDLE_MCP]
+        ring_mcp = landmarks[RING_MCP]
+        pinky_mcp = landmarks[PINKY_MCP]
+
+        # function to calculate distance
+        def distance(p1, p2):
+            return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
+
+        # Calculate average points for each finger
+        def get_finger_average(tip, mcp):
+            return ((tip[0] + mcp[0]) / 2, (tip[1] + mcp[1]) / 2)
+
+        index_avg = get_finger_average(index_tip, index_mcp)
+        middle_avg = get_finger_average(middle_tip, middle_mcp)
+        ring_avg = get_finger_average(ring_tip, ring_mcp)
+
+        # Check if fingers are pointing down
+        fingers_down = (
+            index_tip[1] > index_mcp[1] and
+            middle_tip[1] > middle_mcp[1] and
+            ring_tip[1] > ring_mcp[1]
+        )
+
+        # Check if fingers are extended
+        fingers_extended = (
+            distance(wrist, index_tip) > distance(wrist, index_mcp) * 1.1 and
+            distance(wrist, middle_tip) > distance(wrist, middle_mcp) * 1.1 and
+            distance(wrist, ring_tip) > distance(wrist, ring_mcp) * 1.1
+        )
+
+        # Check if thumb and pinky are NOT extended and pointing down
+        thumb_down = distance(wrist, thumb_tip) > distance(wrist, thumb_mcp) * 1.1 and thumb_tip[1] > thumb_mcp[1]
+        pinky_down = distance(wrist, pinky_tip) > distance(wrist, pinky_mcp) * 1.1 and pinky_tip[1] > pinky_mcp[1]
+
+        # Check the relative positions of the finger averages
+        # For a downward M, middle should be lowest, then ring, then index
+        correct_finger_order = (
+            middle_avg[1] > ring_avg[1] >= index_avg[1]
+        )
+
+        result = fingers_down  and fingers_extended and correct_finger_order
+
+        # Debug output
+        if self.debug:
+            print("================ LETTER M DOWN DEBUG ================")
+            print(f"  Fingers down: {fingers_down}")
+            print(f"  Fingers extended: {fingers_extended}")
+            # print(f"  Thumb down: {thumb_down}")
+            # print(f"  Pinky down: {pinky_down}")
+            print(f"  Correct finger order: {correct_finger_order}")
+            print(f"  Index average y: {index_avg[1]:.1f}")
+            print(f"  Middle average y: {middle_avg[1]:.1f}")
+            print(f"  Ring average y: {ring_avg[1]:.1f}")
+            print(f"  Result: {result}")
+            print("=====================================================")
+            print("---")
+
+        return result
 
     def close(self):
         """Clean up resources"""
