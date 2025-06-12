@@ -8,6 +8,10 @@ Created on Thu Apr 22 11:59:19 2021
 import keyboard
 import numpy as np
 import cv2  # Added for text overlay
+import os
+import sys
+import subprocess
+import platform
 from capturing import VirtualCamera
 from overlays import (
     initialize_hist_figure,
@@ -26,6 +30,308 @@ from basics import (
     edge_detection,
 )
 from hand_detection import HandDetector
+
+
+class SystemSetup:
+    """Handles automatic system setup and camera detection across platforms"""
+    
+    @staticmethod
+    def get_platform():
+        """Detect the current platform"""
+        system = platform.system().lower()
+        if system == "windows":
+            return "windows"
+        elif system == "darwin":
+            return "macos"
+        elif system == "linux":
+            return "linux"
+        else:
+            return "unknown"
+    
+    @staticmethod
+    def detect_working_camera():
+        """Auto-detect the first working camera"""
+        print("🔍 Auto-detecting cameras...")
+        
+        for i in range(10):
+            try:
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        height, width = frame.shape[:2]
+                        print(f"✅ Found working camera at index {i} ({width}x{height})")
+                        cap.release()
+                        return i
+                    cap.release()
+            except Exception:
+                continue
+        
+        print("❌ No working cameras found!")
+        return None
+    
+    @staticmethod
+    def setup_virtual_camera_linux(video_nr=20):
+        """Set up v4l2loopback virtual camera on Linux"""
+        print("🔧 Setting up v4l2loopback virtual camera...")
+        
+        # Check if already loaded with correct parameters
+        virtual_device = f"/dev/video{video_nr}"
+        if os.path.exists(virtual_device):
+            print(f"✅ Virtual camera already exists: {virtual_device}")
+            return video_nr
+        
+        # Check if v4l2loopback module exists
+        try:
+            result = subprocess.run(['modinfo', 'v4l2loopback'], 
+                                  capture_output=True, text=True)
+            if result.returncode != 0:
+                print("❌ v4l2loopback module not available. Install with:")
+                print("   # Arch Linux:")
+                print("   sudo pacman -S v4l2loopback-dkms")
+                print("   # Ubuntu/Debian:")
+                print("   sudo apt install v4l2loopback-dkms")
+                return None
+        except Exception:
+            print("❌ Cannot check v4l2loopback module")
+            return None
+        
+        # Try to load the module
+        try:
+            # First, try to unload existing module
+            subprocess.run(['sudo', 'modprobe', '-r', 'v4l2loopback'], 
+                         capture_output=True)
+            
+            # Load with our parameters
+            cmd = ['sudo', 'modprobe', 'v4l2loopback', 
+                   'devices=1', f'video_nr={video_nr}', 
+                   'card_label=VirtualCam', 'exclusive_caps=1']
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0 and os.path.exists(virtual_device):
+                print(f"✅ Virtual camera created: {virtual_device}")
+                return video_nr
+            else:
+                print(f"⚠️  Failed to create virtual camera at video{video_nr}")
+                # Try alternative video numbers
+                for alt_nr in [3, 4, 5, 21, 22]:
+                    try:
+                        subprocess.run(['sudo', 'modprobe', '-r', 'v4l2loopback'], 
+                                     capture_output=True)
+                        cmd = ['sudo', 'modprobe', 'v4l2loopback', 
+                               'devices=1', f'video_nr={alt_nr}', 
+                               'card_label=VirtualCam', 'exclusive_caps=1']
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+                        
+                        alt_device = f"/dev/video{alt_nr}"
+                        if result.returncode == 0 and os.path.exists(alt_device):
+                            print(f"✅ Virtual camera created: {alt_device}")
+                            return alt_nr
+                    except Exception:
+                        continue
+                
+                print("❌ Could not create virtual camera on any device")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error setting up virtual camera: {e}")
+            print("   Try running: sudo modprobe v4l2loopback devices=1 video_nr=20")
+            return None
+    
+    @staticmethod
+    def setup_virtual_camera_windows():
+        """Set up virtual camera on Windows (requires OBS)"""
+        print("🔧 Checking Windows virtual camera setup...")
+        
+        # Check if OBS is installed by looking for common installation paths
+        obs_paths = [
+            r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+            r"C:\Program Files (x86)\obs-studio\bin\32bit\obs32.exe",
+            os.path.expanduser(r"~\AppData\Local\obs-studio\bin\64bit\obs64.exe"),
+        ]
+        
+        obs_found = False
+        for path in obs_paths:
+            if os.path.exists(path):
+                print(f"✅ Found OBS Studio at: {path}")
+                obs_found = True
+                break
+        
+        if not obs_found:
+            print("❌ OBS Studio not found. Please install OBS Studio:")
+            print("   1. Download from: https://obsproject.com/")
+            print("   2. Install OBS Studio")
+            print("   3. Start OBS, click 'Start Virtual Camera', then 'Stop Virtual Camera'")
+            print("   4. Close OBS and run this script again")
+            return None
+        
+        # Test if pyvirtualcam can find the OBS virtual camera
+        try:
+            import pyvirtualcam
+            # Try to create a camera to test if OBS virtual camera is available
+            with pyvirtualcam.Camera(width=640, height=480, fps=30) as cam:
+                print("✅ OBS Virtual Camera is available and working")
+                return "obs"
+        except Exception as e:
+            print("⚠️  OBS Virtual Camera not properly set up:")
+            print(f"   Error: {e}")
+            print("   To fix:")
+            print("   1. Start OBS Studio")
+            print("   2. Click 'Start Virtual Camera' (bottom right panel)")
+            print("   3. Click 'Stop Virtual Camera'")
+            print("   4. Close OBS and try again")
+            return None
+    
+    @staticmethod
+    def setup_virtual_camera_macos():
+        """Set up virtual camera on macOS (requires OBS)"""
+        print("🔧 Checking macOS virtual camera setup...")
+        
+        # Check if OBS is installed
+        obs_path = "/Applications/OBS.app"
+        if not os.path.exists(obs_path):
+            print("❌ OBS Studio not found. Please install OBS Studio:")
+            print("   1. Download from: https://obsproject.com/")
+            print("   2. Install OBS Studio")
+            print("   3. Start OBS, click 'Start Virtual Camera', then 'Stop Virtual Camera'")
+            print("   4. Close OBS and run this script again")
+            return None
+        
+        print(f"✅ Found OBS Studio at: {obs_path}")
+        
+        # Test if pyvirtualcam can find the OBS virtual camera
+        try:
+            import pyvirtualcam
+            # Try to create a camera to test if OBS virtual camera is available
+            with pyvirtualcam.Camera(width=640, height=480, fps=30) as cam:
+                print("✅ OBS Virtual Camera is available and working")
+                return "obs"
+        except Exception as e:
+            print("⚠️  OBS Virtual Camera not properly set up:")
+            print(f"   Error: {e}")
+            print("   To fix:")
+            print("   1. Start OBS Studio")
+            print("   2. Click 'Start Virtual Camera' (bottom right panel)")
+            print("   3. Click 'Stop Virtual Camera'")
+            print("   4. Close OBS and try again")
+            
+            # Check for macOS 14+ compatibility issues
+            macos_version = platform.mac_ver()[0]
+            if macos_version and float('.'.join(macos_version.split('.')[:2])) >= 14.0:
+                print("   ⚠️  Note: macOS 14+ has known compatibility issues with pyvirtualcam")
+                print("   Consider using an older macOS version or contributing to fix:")
+                print("   https://github.com/letmaik/pyvirtualcam/issues/111")
+            
+            return None
+    
+    @staticmethod
+    def check_permissions_linux():
+        """Check and fix permissions on Linux"""
+        print("🔐 Checking Linux permissions...")
+        
+        # Get current user info
+        if os.geteuid() == 0:  # Running as root
+            print("⚠️  Running as root - some GUI features may not work")
+            # Try to set up X11 access
+            try:
+                original_user = os.environ.get('SUDO_USER')
+                if original_user:
+                    subprocess.run(['xhost', f'+si:localuser:{original_user}'], 
+                                 capture_output=True)
+                    print("✅ X11 access configured for GUI components")
+            except Exception:
+                print("⚠️  Could not configure X11 access - histograms may not display")
+            return True
+        else:
+            # Check if user is in video group
+            try:
+                import pwd
+                import grp
+                username = pwd.getpwuid(os.getuid()).pw_name
+                user_groups = [g.gr_name for g in grp.getgrall() if username in g.gr_mem]
+                
+                if 'video' in user_groups:
+                    print("✅ User has video group permissions")
+                    return True
+                else:
+                    print("⚠️  User not in video group")
+                    print(f"   Run: sudo usermod -a -G video {username}")
+                    print("   Then log out and back in, or run with 'newgrp video'")
+                    return False
+            except ImportError:
+                print("⚠️  Cannot check group membership (missing modules)")
+                return True
+    
+    @staticmethod
+    def check_permissions_windows():
+        """Check permissions on Windows"""
+        print("🔐 Checking Windows permissions...")
+        print("✅ Windows permissions should be handled automatically")
+        return True
+    
+    @staticmethod
+    def check_permissions_macos():
+        """Check permissions on macOS"""
+        print("🔐 Checking macOS permissions...")
+        print("✅ macOS permissions should be handled automatically")
+        print("   Note: You may need to grant camera access in System Preferences")
+        return True
+    
+    @staticmethod
+    def auto_setup():
+        """Perform complete automatic setup based on platform"""
+        current_platform = SystemSetup.get_platform()
+        
+        print("🚀 Computer Vision Project - Cross-Platform Auto Setup")
+        print("=" * 55)
+        print(f"🖥️  Detected platform: {current_platform.title()}")
+        
+        # Check permissions based on platform
+        if current_platform == "linux":
+            permissions_ok = SystemSetup.check_permissions_linux()
+        elif current_platform == "windows":
+            permissions_ok = SystemSetup.check_permissions_windows()
+        elif current_platform == "macos":
+            permissions_ok = SystemSetup.check_permissions_macos()
+        else:
+            print("⚠️  Unknown platform - proceeding with basic setup")
+            permissions_ok = True
+        
+        # Detect working camera (works on all platforms)
+        camera_index = SystemSetup.detect_working_camera()
+        if camera_index is None:
+            print("\n❌ Setup failed: No working camera found")
+            print("Make sure:")
+            print("- Camera is connected and recognized")
+            print("- Camera is not in use by another application")
+            print("- User has proper permissions")
+            return None, None, current_platform
+        
+        # Setup virtual camera based on platform
+        virtual_camera_info = None
+        if current_platform == "linux":
+            virtual_camera_info = SystemSetup.setup_virtual_camera_linux()
+        elif current_platform == "windows":
+            virtual_camera_info = SystemSetup.setup_virtual_camera_windows()
+        elif current_platform == "macos":
+            virtual_camera_info = SystemSetup.setup_virtual_camera_macos()
+        else:
+            print("⚠️  Virtual camera setup not supported on this platform")
+        
+        print(f"\n✅ Setup complete!")
+        print(f"   Platform: {current_platform.title()}")
+        print(f"   Camera: index {camera_index}")
+        
+        if virtual_camera_info:
+            if current_platform == "linux":
+                print(f"   Virtual camera: /dev/video{virtual_camera_info}")
+            else:
+                print(f"   Virtual camera: OBS Virtual Camera (backend: {virtual_camera_info})")
+        else:
+            print("   Virtual camera: Not available (application will work without it)")
+        
+        return camera_index, virtual_camera_info, current_platform
 
 
 class KeyPressDetector:  # This class is used to detect if a key is just pressed
@@ -247,7 +553,14 @@ def custom_processing(img_source_generator):
 
 
 def main():
-    # change according to your settings
+    # Perform automatic setup
+    camera_index, virtual_camera_info, current_platform = SystemSetup.auto_setup()
+    
+    if camera_index is None:
+        print("\n❌ Cannot start application - setup failed")
+        sys.exit(1)
+    
+    # Default settings
     width = 1280
     height = 720
     fps = 30
@@ -255,7 +568,7 @@ def main():
     # Define your virtual camera
     vc = VirtualCamera(fps, width, height)
 
-    print("Starting Computer Vision Project with Hand Detection")
+    print(f"\n🎬 Starting Computer Vision Project")
     print("Controls:")
     print("'n' - Toggle Hand Detection")
     print("'g' - Toggle Debug Mode (prints gesture detection details)")
@@ -268,16 +581,40 @@ def main():
     print("'t' - Toggle Linear Transformation")
     print("'1-4' - Different transformation presets (when transform is ON)")
     print("'q' - Quit")
+    print("\n🎥 Camera feed starting...")
 
-    vc.virtual_cam_interaction(
-        custom_processing(
-            # either camera stream
-            vc.capture_cv_video(0, bgr_to_rgb=True)
-            # or your window screen
-            # vc.capture_screen()
-        ),
-        device="/dev/video20",
-    )
+    # Prepare virtual camera interaction arguments
+    interaction_kwargs = {}
+    
+    if virtual_camera_info:
+        if current_platform == "linux":
+            interaction_kwargs['device'] = f"/dev/video{virtual_camera_info}"
+        # For Windows/macOS, pyvirtualcam automatically finds OBS virtual camera
+    
+    try:
+        vc.virtual_cam_interaction(
+            custom_processing(
+                vc.capture_cv_video(camera_index, bgr_to_rgb=True)
+            ),
+            **interaction_kwargs
+        )
+    except Exception as e:
+        print(f"\n❌ Error running application: {e}")
+        print("\nTroubleshooting:")
+        print("- Make sure no other application is using the camera")
+        
+        if current_platform == "windows":
+            print("- Ensure OBS Studio is installed and virtual camera is set up")
+            print("- Try starting OBS, enable virtual camera, then stop it")
+        elif current_platform == "macos":
+            print("- Ensure OBS Studio is installed and virtual camera is set up") 
+            print("- Check System Preferences for camera permissions")
+            print("- Note: macOS 14+ has known compatibility issues")
+        else:  # Linux
+            print("- Try running with sudo if permission issues persist")
+            print("- Check that v4l2loopback is installed")
+        
+        sys.exit(1)
 
 
 if __name__ == "__main__":

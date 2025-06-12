@@ -1,5 +1,19 @@
 # Computer Vision Project
 
+## 🚀 Quick Start
+
+This project now features **automatic setup and camera detection**! 
+
+```bash
+# 1. Set up your environment (one-time setup)
+./setup.sh
+
+# 2. Run the project (auto-detects everything)
+sudo $(which python) run.py
+```
+
+That's it! The project will automatically detect your camera, set up the virtual camera, and handle permissions.
+
 ## Features
 
 ### Basic Image Processing
@@ -18,7 +32,7 @@
 - **Hand Detection**: Real-time hand landmark detection using MediaPipe
 - **Vulcan Salute Recognition**: Advanced gesture detection with visual feedback
 - **Live Statistics Overlay**: Real-time display of image statistics and filter status
-
+- **🆕 Automatic Setup**: Auto-detects cameras, sets up virtual camera, handles permissions
 
 ## Requirements
 
@@ -27,116 +41,166 @@
 - **Additional Software**: OBS Studio (for testing virtual camera functionality)
 - **Python Version Manager**: pyenv with pyenv-virtualenv plugin
 
-## 📦 Installation
+## Installation
 
-### 1. Install Python 3.10 with pyenv
+### 🎯 Automatic Setup (Recommended)
 
-This project requires Python 3.10. Use pyenv with the virtualenv plugin to manage the Python version, due to mediapipe dependencies.
+#### 1. Install Python 3.10.12 with pyenv
 
 For more information about how to install pyenv and pyenv-virtualenv, see the documentation for both:
 - [pyenv](https://github.com/pyenv/pyenv)
 - [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv)
 
-#### Install pyenv
 ```bash
-# On Arch/EndeavourOS
+# On Arch
 sudo pacman -S pyenv
 
-# On Ubuntu/Debian
-curl https://pyenv.run | bash
-
-# On macOS
-brew install pyenv
-```
-
-#### Install pyenv-virtualenv as a plugin
-```bash
+# Install pyenv-virtualenv as a plugin
 git clone https://github.com/pyenv/pyenv-virtualenv.git $(pyenv root)/plugins/pyenv-virtualenv
-```
 
-#### Configure shell (add to ~/.zshrc or ~/.bashrc)
-```bash
+# Configure shell (add to ~/.zshrc or ~/.bashrc)
 eval "$(pyenv init - zsh)"
 eval "$(pyenv virtualenv-init -)"
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 
-```
-
-#### Install and set Python 3.10
-```bash
-# Reload shell configuration
+# Reload shell and install Python 3.10
 source ~/.zshrc  # or source ~/.bashrc
-
-# Install Python 3.10
 pyenv install 3.10.12
-
-# Verify installation
-pyenv versions
 ```
 
-### 2. Clone the Repository
+#### 2. Clone and Set Up the Project
 ```bash
+# Clone the repository
 git clone git@github.com:viniciusbregoli/computer-vision-project.git
 cd computer-vision-project
-```
 
-### 3. Create Virtual Environment with pyenv
-```bash
-# Create virtual environment using Python 3.10
+# Create and activate virtual environment
 pyenv virtualenv 3.10.12 computer-vision-project
-
-# Activate the virtual environment
 pyenv activate computer-vision-project
-
-# Set local Python version for this project
 pyenv local computer-vision-project
-```
 
-### 4. Install Dependencies
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Run automatic setup
+./setup.sh
+
+# Start the project
+sudo $(which python) run.py
 ```
 
-### 5. System-Specific Setup
+#### 3. If You Need Manual Group Setup
+If the setup script couldn't add you to the video group automatically:
 
-#### Linux (Arch)
+```bash
+# Add yourself to video group (requires logout/login after)
+sudo usermod -a -G video $USER
+
+# Temporary activation (for current session)
+newgrp video
+
+# Then run the project
+sudo $(which python) run.py
+```
+
+### 🛠️ Manual Setup (Fallback)
+
+If automatic setup doesn't work on your system, follow these manual steps:
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### System-Specific Setup
+
+##### Linux (Arch)
 ```bash
 # Install v4l2loopback for virtual camera support
 sudo pacman -S v4l2loopback-dkms
 sudo modprobe v4l2loopback devices=1 video_nr=20 card_label="VirtualCam" exclusive_caps=1
 ```
 
-#### Windows
+##### Windows
 - Install OBS Studio
 - Ensure OBS Virtual Camera is available
 
-#### macOS
+##### macOS
 - Install OBS Studio or similar virtual camera software
 
-### 6. Verify Installation
+#### Manual Permission Setup
 ```bash
-# Check Python version (should show 3.10.x)
-python --version
+# Add user to video group
+sudo usermod -a -G video $USER
 
-# Check that you're in the correct virtual environment
-pyenv version
-
-# Run the application
-python run.py
-
-# Maybe it is necessary to run as sudo
-sudo $(which python) run.py
+# Log out and back in, or run:
+newgrp video
 ```
+
+#### Manual Camera Detection
+```bash
+# Test which cameras work
+python -c "
+import cv2
+for i in range(5):
+    cap = cv2.VideoCapture(i)
+    if cap.isOpened():
+        ret, frame = cap.read()
+        if ret:
+            print(f'Camera {i}: Working')
+        cap.release()
+"
+```
+
+</details>
 
 ## Usage
 
+### 🎬 Starting the Application
 
-The application will:
-1. Initialize the virtual camera on `/dev/video20` (Linux). if you are using Windows or macOS, remove the `device` parameter from the `vc.virtual_cam_interaction` call in `run.py`
-2. Start capturing from the webcam
-3. Display real-time processing controls
+The enhanced `run.py` automatically handles:
+- **Camera Detection**: Scans and finds working cameras
+- **Virtual Camera Setup**: Creates `/dev/video20` (or alternative)
+- **Permission Handling**: Sets up X11 access when needed
+- **Error Recovery**: Provides helpful troubleshooting messages
 
+```bash
+# Simple start (recommended)
+sudo $(which python) run.py
+
+# If you get permission errors:
+newgrp video && sudo $(which python) run.py
+
+# As a last resort:
+sudo sudo $(which python) run.py
+```
+
+### 🔧 Troubleshooting
+
+If you encounter issues:
+
+```bash
+# 1. Run the setup script again
+./setup.sh
+
+# 2. Check system status
+python -c "
+import cv2
+print('OpenCV version:', cv2.__version__)
+# Test camera access
+cap = cv2.VideoCapture(1)
+print('Camera 1 available:', cap.isOpened())
+cap.release()
+"
+
+# 3. Check video devices
+ls -la /dev/video*
+
+# 4. Check user groups
+groups | grep video
+
+# 5. Manual virtual camera setup
+sudo modprobe v4l2loopback devices=1 video_nr=20 card_label="VirtualCam" exclusive_caps=1
+```
 
 ## ⌨️ Controls
 
@@ -171,18 +235,29 @@ The system can detect the iconic Star Trek Vulcan salute gesture with high accur
 - Provides visual feedback with green bounding box
 - Displays "LIVE LONG AND PROSPER :D" message when detected
 
-![alt text](demo/image.png)
-![alt text](demo/image2.png)
+![Hand Detection Demo](demo/image.png)
+![Vulcan Salute Detection](demo/image2.png)
 
 ## Configuration
 
-### Camera Settings
-Edit `run.py` to modify default settings:
+### Automatic Configuration
+The application automatically configures:
+- **Camera Selection**: Uses first working camera found
+- **Resolution**: Attempts 1280x720, falls back to camera default
+- **Virtual Camera**: Creates `/dev/video20` or next available device
+- **Frame Rate**: Targets 30fps
+
+### Manual Configuration (if needed)
+Edit `run.py` to override automatic settings:
+
 ```python
+# In main() function, modify these values:
 width = 1280      # Output resolution width
 height = 720      # Output resolution height
 fps = 30          # Target frame rate
-camera_id = 0     # Webcam device ID
+
+# Force specific camera (overrides auto-detection):
+# vc.capture_cv_video(0, bgr_to_rgb=True)  # Force camera 0
 ```
 
 ### Hand Detection Parameters
@@ -196,11 +271,47 @@ hand_detector = HandDetector(
 )
 ```
 
-### Virtual Camera Device
-For Linux systems, specify the virtual camera device:
-```python
-vc.virtual_cam_interaction(
-    custom_processing(vc.capture_cv_video(0, bgr_to_rgb=True)),
-    device="/dev/video20"  # Adjust device path as needed
-)
+## 🆕 What's New in This Version
+
+### Automatic Setup Features
+- **🔍 Smart Camera Detection**: Automatically finds and tests working cameras
+- **📹 Virtual Camera Auto-Setup**: Creates virtual camera devices automatically
+- **🔐 Permission Auto-Handling**: Manages video group and X11 permissions
+- **🛠️ Setup Script**: One-command setup for dependencies and system configuration
+- **🚨 Intelligent Error Messages**: Helpful troubleshooting guidance when things go wrong
+- **💻 Cross-Platform Compatibility**: Adapts to different Linux distributions
+
+### Improved User Experience
+- **Zero Manual Configuration**: Just run and it works
+- **Robust Fallbacks**: Tries multiple approaches when the default fails
+- **Clear Status Messages**: See exactly what's being set up and why
+- **Graceful Degradation**: Works even if some features aren't available
+
+## File Structure
+
 ```
+computer-vision-project/
+├── run.py                  # Main application (enhanced with auto-setup)
+├── setup.sh               # Automatic system setup script
+├── capturing.py            # Camera and virtual camera handling
+├── basics.py              # Basic image processing functions
+├── hand_detection.py       # MediaPipe hand detection and gesture recognition
+├── overlays.py            # Image overlay utilities
+├── requirements.txt        # Python dependencies
+├── README.md              # This file
+└── demo/                  # Demo images
+    ├── image.png
+    └── image2.png
+```
+
+## Getting Help
+
+If you run into issues:
+
+1. **Run the setup script**: `./setup.sh`
+2. **Check the troubleshooting section** in this README
+3. **Look at the automatic error messages** - they provide specific guidance
+4. **Try running with different permissions**: `newgrp video` or `sudo`
+5. **Verify your camera works** with other applications first
+
+The enhanced version is designed to handle most setup issues automatically and provide clear guidance when manual intervention is needed.
