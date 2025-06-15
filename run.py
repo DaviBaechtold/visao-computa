@@ -31,6 +31,18 @@ from basics import (
 )
 from hand_detection import HandDetector
 
+# Load Herobrine image once (after other imports, before main loop)
+herobrine_img = cv2.imread('herobrine.jpg', cv2.IMREAD_UNCHANGED)  # Use IMREAD_UNCHANGED to keep alpha if present
+
+
+
+def overlay_image_alpha(img, img_overlay, x, y, alpha_mask):
+    """Overlay img_overlay on top of img at (x, y) with alpha_mask."""
+    h, w = img_overlay.shape[:2]
+    alpha = alpha_mask / 255.0
+    for c in range(0, 3):
+        img[y:y+h, x:x+w, c] = (1. - alpha) * img[y:y+h, x:x+w, c] + alpha * img_overlay[:, :, c]
+    return img
 
 class SystemSetup:
     """Handles automatic system setup and camera detection across platforms"""
@@ -370,6 +382,12 @@ def custom_processing(img_source_generator):
     a = 1
     b = 0
 
+    # Debounce/hysteresis variables for background application
+    m_detected_counter = 0
+    m_not_detected_counter = 0
+    background_applied = False
+    FRAMES_TO_CONFIRM = 5  # Number of consecutive frames to confirm gesture
+
     try:
         for sequence in img_source_generator:
             # Handle keyboard input
@@ -392,7 +410,9 @@ def custom_processing(img_source_generator):
             if key_detector.is_key_just_pressed("g"):  # 'g' for debuG mode
                 hand_detector.debug = not hand_detector.debug
                 print(f"Debug mode: {'ON' if hand_detector.debug else 'OFF'}")
-
+            if key_detector.is_key_just_pressed("q"): # 'q' for Quit
+                print("\n👋 Quitting program...")
+                sys.exit(0)
             # Filters (apply in order)
 
             # Blur filter
@@ -436,24 +456,11 @@ def custom_processing(img_source_generator):
 
             # Hand detection and landmark drawing
             vulcan_detected = False
+            letter_m_detected = False
             if SHOW_HAND_DETECTION:
-                sequence, vulcan_detected = hand_detector.detect_and_draw_hands(
+                sequence, vulcan_detected, letter_m_detected = hand_detector.detect_and_draw_hands(
                     sequence
                 )
-
-                # Add prominent Vulcan salute indicator
-                if vulcan_detected:
-                    h, w, _ = sequence.shape
-                    # Add large text overlay
-                    cv2.putText(
-                        sequence,
-                        "LIVE LONG AND PROSPER :D",
-                        (w // 2 - 300, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        2.0,
-                        (0, 255, 0),
-                        4,
-                    )
 
             # Get final histogram for display and stats
             if SHOW_HIST or SHOW_STATS:
@@ -528,8 +535,10 @@ def custom_processing(img_source_generator):
                     display_text_arr.append("Hand Detection: ON")
                     if vulcan_detected:
                         display_text_arr.append("VULCAN SALUTE DETECTED! 🖖")
+                    elif letter_m_detected:
+                        display_text_arr.append("LETTER M DETECTED! 📝")
                     else:
-                        display_text_arr.append("Vulcan Salute: Not detected")
+                        display_text_arr.append("No special gestures detected")
 
                 # Add control instructions
                 display_text_arr.append("--- Controls ---")
@@ -544,6 +553,47 @@ def custom_processing(img_source_generator):
                 display_text_arr.append("'t': Toggle Transform")
 
                 sequence = plot_strings_to_image(sequence, display_text_arr)
+
+            if letter_m_detected:
+                # Darken the whole frame
+                sequence = (sequence * 0.4).astype(np.uint8)
+                if herobrine_img is not None:
+                    # Resize Herobrine image if needed
+                    scale = 0.2  # 20% of original size
+                    h_h, w_h = int(herobrine_img.shape[0] * scale), int(herobrine_img.shape[1] * scale)
+                    herobrine_small = cv2.resize(herobrine_img, (w_h, h_h), interpolation=cv2.INTER_AREA)
+
+                    # Where to place (bottom right)
+                    h_frame, w_frame = sequence.shape[:2]
+                    x_offset = w_frame - w_h - 10  # 10px from right
+                    y_offset = h_frame - h_h - 10  # 10px from bottom
+
+                    # If image has alpha channel
+                    if herobrine_small.shape[2] == 4:
+                        alpha_mask = herobrine_small[:, :, 3]
+                        sequence = overlay_image_alpha(sequence, herobrine_small[:, :, :3], x_offset, y_offset, alpha_mask)
+                    else:
+                        # No alpha, just overlay
+                        sequence[y_offset:y_offset+h_h, x_offset:x_offset+w_h] = herobrine_small
+
+                    # Add text at the top center
+                    text = "herobrine is here"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 2.0
+                    thickness = 4
+                    text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
+                    text_x = (w_frame - text_size[0]) // 2
+                    text_y = 60  # 60px from the top
+                    cv2.putText(
+                        sequence,
+                        text,
+                        (text_x, text_y),
+                        font,
+                        font_scale,
+                        (255, 0, 0),
+                        thickness,
+                        cv2.LINE_AA,
+                    )
 
             yield sequence
 
