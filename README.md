@@ -1,8 +1,8 @@
 # Computer Vision Project
 
-## 🚀 Quick Start
+## Quick Start
 
-This project now features **automatic setup and camera detection**! 
+This project features automatic setup and camera detection.
 
 ```bash
 # 1. Set up your environment (one-time setup)
@@ -12,7 +12,7 @@ This project now features **automatic setup and camera detection**!
 sudo $(which python) run.py
 ```
 
-That's it! The project will automatically detect your camera, set up the virtual camera, and handle permissions.
+The project will automatically detect your camera, set up the virtual camera, and handle permissions.
 
 ## Features
 
@@ -31,8 +31,10 @@ That's it! The project will automatically detect your camera, set up the virtual
 ### Special Features
 - **Hand Detection**: Real-time hand landmark detection using MediaPipe
 - **Vulcan Salute Recognition**: Advanced gesture detection with visual feedback
+- **Letter M Detection**: Special gesture that triggers the Herobrine easter egg
 - **Live Statistics Overlay**: Real-time display of image statistics and filter status
-- **🆕 Automatic Setup**: Auto-detects cameras, sets up virtual camera, handles permissions
+- **Automatic Setup**: Auto-detects cameras, sets up virtual camera, handles permissions
+- **Herobrine Easter Egg**: Special effect triggered by making the letter "M" gesture
 
 ## Requirements
 
@@ -43,7 +45,7 @@ That's it! The project will automatically detect your camera, set up the virtual
 
 ## Installation
 
-### 🎯 Automatic Setup (Recommended)
+### Automatic Setup (Recommended)
 
 #### 1. Install Python 3.10.12 with pyenv
 
@@ -104,7 +106,7 @@ newgrp video
 sudo $(which python) run.py
 ```
 
-### 🛠️ Manual Setup (Fallback)
+### Manual Setup (Fallback)
 
 If automatic setup doesn't work on your system, follow these manual steps:
 
@@ -155,7 +157,7 @@ for i in range(5):
 
 ## Usage
 
-### 🎬 Starting the Application
+### Starting the Application
 
 The enhanced `run.py` automatically handles:
 - **Camera Detection**: Scans and finds working cameras
@@ -174,7 +176,7 @@ newgrp video && sudo $(which python) run.py
 sudo sudo $(which python) run.py
 ```
 
-### 🔧 Troubleshooting
+### Troubleshooting
 
 If you encounter issues:
 
@@ -202,7 +204,7 @@ groups | grep video
 sudo modprobe v4l2loopback devices=1 video_nr=20 card_label="VirtualCam" exclusive_caps=1
 ```
 
-## ⌨️ Controls
+## Controls
 
 | Key | Function |
 |-----|----------|
@@ -228,12 +230,20 @@ sudo modprobe v4l2loopback devices=1 video_nr=20 card_label="VirtualCam" exclusi
 
 The hand detection system uses MediaPipe for real-time tracking.
 
-### Vulcan Salute Detection
-The system can detect the iconic Star Trek Vulcan salute gesture with high accuracy:
+### Gesture Detection
+The system can detect two special gestures:
+
+#### Vulcan Salute
 - Analyzes finger positioning and separation
 - Validates proper finger grouping (index+middle, ring+pinky)
 - Provides visual feedback with green bounding box
 - Displays "LIVE LONG AND PROSPER :D" message when detected
+
+#### Letter M Gesture
+- Detects when fingers form the letter "M" shape
+- Triggers the Herobrine easter egg
+- Darkens the screen and displays Herobrine image
+- Shows "herobrine is here" message
 
 ![Hand Detection Demo](demo/image.png)
 ![Vulcan Salute Detection](demo/image2.png)
@@ -270,22 +280,6 @@ hand_detector = HandDetector(
     debug=False                         # Debug output
 )
 ```
-
-## 🆕 What's New in This Version
-
-### Automatic Setup Features
-- **🔍 Smart Camera Detection**: Automatically finds and tests working cameras
-- **📹 Virtual Camera Auto-Setup**: Creates virtual camera devices automatically
-- **🔐 Permission Auto-Handling**: Manages video group and X11 permissions
-- **🛠️ Setup Script**: One-command setup for dependencies and system configuration
-- **🚨 Intelligent Error Messages**: Helpful troubleshooting guidance when things go wrong
-- **💻 Cross-Platform Compatibility**: Adapts to different Linux distributions
-
-### Improved User Experience
-- **Zero Manual Configuration**: Just run and it works
-- **Robust Fallbacks**: Tries multiple approaches when the default fails
-- **Clear Status Messages**: See exactly what's being set up and why
-- **Graceful Degradation**: Works even if some features aren't available
 
 ## File Structure
 
