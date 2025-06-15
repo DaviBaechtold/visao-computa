@@ -410,7 +410,9 @@ def custom_processing(img_source_generator):
             if key_detector.is_key_just_pressed("g"):  # 'g' for debuG mode
                 hand_detector.debug = not hand_detector.debug
                 print(f"Debug mode: {'ON' if hand_detector.debug else 'OFF'}")
-
+            if key_detector.is_key_just_pressed("q"): # 'q' for Quit
+                print("\n👋 Quitting program...")
+                sys.exit(0)
             # Filters (apply in order)
 
             # Blur filter
